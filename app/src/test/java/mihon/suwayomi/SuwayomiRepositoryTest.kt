@@ -13,6 +13,8 @@ import okhttp3.Request
 import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import okio.Buffer
+import mihon.suwayomi.auth.FakeAuth
+import mihon.suwayomi.auth.SuwayomiAuth
 import org.junit.jupiter.api.Test
 
 /**
@@ -27,8 +29,8 @@ class SuwayomiRepositoryTest {
     private var responseBody = "{}"
 
     private fun repository(
-        url: String = "http://suwayomi.test:4567",
-        key: String = "",
+        url: String = "https://suwayomi.test:4567",
+        auth: SuwayomiAuth = FakeAuth(),
     ): SuwayomiRepository {
         val client = OkHttpClient.Builder()
             .addInterceptor(
@@ -46,7 +48,7 @@ class SuwayomiRepositoryTest {
                 },
             )
             .build()
-        return SuwayomiRepository(client, serverUrl = { url }, apiKey = { key })
+        return SuwayomiRepository(client, serverUrl = { url }, auth = auth)
     }
 
     private fun manga(id: Int, inLibrary: Boolean = false, extra: String = "") =
@@ -74,7 +76,7 @@ class SuwayomiRepositoryTest {
         val result = repository().getSources()
 
         result shouldBe SuwayomiResult.Ok(listOf(SuwayomiSource("123", "Alpha (EN)", "en", "/i/1", true)))
-        requests.single().url.toString() shouldBe "http://suwayomi.test:4567/api/graphql"
+        requests.single().url.toString() shouldBe "https://suwayomi.test:4567/api/graphql"
     }
 
     @Test
@@ -156,7 +158,7 @@ class SuwayomiRepositoryTest {
 
         val pages = (repository().getChapterPages(2) as SuwayomiResult.Ok).value
 
-        pages.pageUrls shouldBe listOf("http://suwayomi.test:4567/api/v1/manga/1/chapter/2/page/0", "https://cdn.test/p1.jpg")
+        pages.pageUrls shouldBe listOf("https://suwayomi.test:4567/api/v1/manga/1/chapter/2/page/0", "https://cdn.test/p1.jpg")
         pages.lastPageRead shouldBe 1
     }
 
@@ -238,12 +240,62 @@ class SuwayomiRepositoryTest {
     }
 
     @Test
-    fun `api key is sent as bearer token`() = runTest {
+    fun `the pocket id access token is sent as the only bearer credential`() = runTest {
         responseBody = """{"data":{"sources":{"nodes":[]}}}"""
 
-        repository(key = " secret ").getSources()
+        repository(auth = FakeAuth(token = "fake-access-token-1")).getSources()
 
-        requests.single().header("Authorization") shouldBe "Bearer secret"
+        requests.single().headers("Authorization") shouldBe listOf("Bearer fake-access-token-1")
+    }
+
+    @Test
+    fun `not signed in is a typed error and sends nothing`() = runTest {
+        val repo = repository(auth = FakeAuth(token = null))
+
+        repo.getSources() shouldBe SuwayomiResult.Err(SuwayomiError.NotSignedIn)
+        repo.browse("1", SuwayomiBrowseType.POPULAR, 1) shouldBe SuwayomiResult.Err(SuwayomiError.NotSignedIn)
+        repo.enqueueDownloads(listOf(1)) shouldBe SuwayomiResult.Err(SuwayomiError.NotSignedIn)
+        repo.getChapterPages(1) shouldBe SuwayomiResult.Err(SuwayomiError.NotSignedIn)
+        requests.size shouldBe 0
+    }
+
+    @Test
+    fun `a session that disappears mid-request is reported as not signed in`() = runTest {
+        val auth = FakeAuth(token = "fake-access-token-1", refreshedToken = null)
+        responseCode = 401
+
+        repository(auth = auth).getSources() shouldBe SuwayomiResult.Err(SuwayomiError.NotSignedIn)
+        requests.size shouldBe 1
+    }
+
+    @Test
+    fun `only the https server origin gets the authorised call factory`() {
+        val repo = repository()
+        (repo.authorizedCallFactory("https://suwayomi.test:4567/a.png") != null) shouldBe true
+        repo.authorizedCallFactory("https://other.test/a.png") shouldBe null
+        repo.authorizedCallFactory("http://suwayomi.test:4567/a.png") shouldBe null
+        repo.authorizedCallFactory(null) shouldBe null
+    }
+
+    @Test
+    fun `an http server never gets a call factory token request or credential`() = runTest {
+        val auth = FakeAuth()
+        val repo = repository(url = "http://suwayomi.test:4567", auth = auth)
+        repo.authorizedCallFactory("http://suwayomi.test:4567/a.png") shouldBe null
+
+        repo.getSources()
+
+        requests.single().header("Authorization") shouldBe null
+        auth.tokenRequests.get() shouldBe 0
+    }
+
+    @Test
+    fun `an http server works without a session and still carries no credentials`() = runTest {
+        val auth = FakeAuth(token = null)
+        repository(url = "http://suwayomi.test:4567", auth = auth).getSources()
+
+        requests.single().header("Authorization") shouldBe null
+        auth.tokenRequests.get() shouldBe 0
     }
 
     @Test
@@ -270,18 +322,15 @@ class SuwayomiRepositoryTest {
     }
 
     @Test
-    fun `resolveUrl and image headers follow the saved settings`() {
-        val repo = repository(url = "https://example.test/suwayomi/", key = "k")
+    fun `resolveUrl and image call factory follow the saved settings`() {
+        val repo = repository(url = "https://example.test/suwayomi/", auth = FakeAuth(token = "k"))
 
         repo.resolveUrl("/api/v1/manga/1/thumbnail") shouldBe "https://example.test/suwayomi/api/v1/manga/1/thumbnail"
         repo.resolveUrl("https://other.test/a.png") shouldBe "https://other.test/a.png"
         repo.resolveUrl(null) shouldBe null
         val own = "https://example.test/suwayomi/api/v1/manga/1/thumbnail"
-        repo.imageHeaders(own) shouldBe mapOf("Authorization" to "Bearer k")
-        // The key never goes to another host, including one that only shares the server URL as a prefix.
-        repo.imageHeaders("https://other.test/a.png") shouldBe emptyMap()
-        repo.imageHeaders("https://example.test/suwayomi.evil.test/a.png") shouldBe emptyMap()
-        repo.imageHeaders(null) shouldBe emptyMap()
-        repository().imageHeaders("http://suwayomi.test:4567/a.png") shouldBe emptyMap()
+        (repo.authorizedCallFactory(own) != null) shouldBe true
+        repo.authorizedCallFactory("https://example.test.evil.test/a.png") shouldBe null
+        repo.authorizedCallFactory("http://example.test/suwayomi/a.png") shouldBe null
     }
 }

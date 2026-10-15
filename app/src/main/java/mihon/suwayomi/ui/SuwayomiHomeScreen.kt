@@ -65,15 +65,22 @@ object SuwayomiHomeScreen : Screen() {
         val snackbar = remember { SnackbarHostState() }
         val error by model.error.collectAsState()
         val errorMessage = error?.let { errorText(it) }
+        val auth = LocalContext.current.appGraph.suwayomiAuth
+        val authState by auth.state.collectAsState()
+        val signedIn = authState.signedIn
 
-        LaunchedEffect(Unit) { model.loadLibrary() }
+        // Coming back from the sign-in browser: pick up the session the redirect handler stored.
+        OnResume { auth.syncState() }
+
+        LaunchedEffect(signedIn) { if (signedIn) model.loadLibrary() }
         LaunchedEffect(errorMessage) {
             if (errorMessage != null) {
                 snackbar.showSnackbar(errorMessage)
                 model.consumeError()
             }
         }
-        LaunchedEffect(tab) {
+        LaunchedEffect(tab, signedIn) {
+            if (!signedIn) return@LaunchedEffect
             when (tab) {
                 1 -> model.loadSources()
                 2 -> model.loadDownloads()
@@ -111,6 +118,10 @@ object SuwayomiHomeScreen : Screen() {
             snackbarHost = { SnackbarHost(snackbar) },
         ) { padding ->
             Column(Modifier.padding(padding).fillMaxSize()) {
+                if (!signedIn) {
+                    SignInRequired(auth, authState.error)
+                    return@Column
+                }
                 when (tab) {
                     0 -> LibraryTab(model, repository)
                     1 -> BrowseTab(model, repository)

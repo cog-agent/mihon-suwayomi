@@ -18,6 +18,8 @@ import mihon.suwayomi.KeystoreSecretCipher
 import mihon.suwayomi.SecretCipher
 import mihon.suwayomi.SuwayomiPreferences
 import mihon.suwayomi.SuwayomiRepository
+import mihon.suwayomi.auth.OidcPreferences
+import mihon.suwayomi.auth.OidcSession
 import mihon.telemetry.TelemetryConfig
 import nl.adaptivity.xmlutil.XmlDeclMode
 import nl.adaptivity.xmlutil.core.XmlVersion
@@ -74,10 +76,23 @@ object AppBindings {
 
     @Provides
     @SingleIn(AppScope::class)
-    fun providesSuwayomiRepository(network: NetworkHelper, preferences: SuwayomiPreferences): SuwayomiRepository =
-        SuwayomiRepository(
-            httpClient = network.client,
-            serverUrl = { preferences.serverUrl().get() },
-            apiKey = { preferences.getApiKey() },
-        )
+    fun providesOidcSession(
+        network: NetworkHelper,
+        preferences: OidcPreferences,
+        @AppCoroutineScope scope: CoroutineScope,
+    ): OidcSession = OidcSession(prefs = preferences, httpClient = network.client, scope = scope)
+
+    @Provides
+    @SingleIn(AppScope::class)
+    fun providesSuwayomiRepository(
+        network: NetworkHelper,
+        preferences: SuwayomiPreferences,
+        oidcPreferences: OidcPreferences,
+        auth: OidcSession,
+    ): SuwayomiRepository = SuwayomiRepository(
+        httpClient = network.client,
+        serverUrl = { preferences.serverUrl().get() },
+        auth = auth,
+        issuer = { oidcPreferences.config()?.issuer },
+    )
 }

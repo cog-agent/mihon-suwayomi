@@ -18,5 +18,8 @@ object SuwayomiServerUrl {
         return url.toString().trimEnd('/')
     }
 
+    /** Only an https server may receive the Pocket ID token. */
+    fun isHttps(baseUrl: String): Boolean = baseUrl.toHttpUrlOrNull()?.isHttps == true
+
     fun graphQlEndpoint(baseUrl: String): String = "${baseUrl.trimEnd('/')}/api/graphql"
 }

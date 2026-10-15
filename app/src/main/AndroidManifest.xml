@@ -120,6 +120,24 @@
             android:exported="false"
             android:process=":error_handler" />
 
+        <!-- OIDC redirect for the Suwayomi sign-in. Exported because the browser delivers it; the session only
+             accepts it while a sign-in it started is pending. -->
+        <activity
+            android:name="mihon.suwayomi.auth.OidcRedirectActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask"
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="app.mihon.suwayomi" />
+            </intent-filter>
+        </activity>
+
         <activity
             android:name=".ui.deeplink.DeepLinkActivity"
             android:exported="true"

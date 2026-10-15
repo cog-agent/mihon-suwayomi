@@ -35,10 +35,20 @@ import mihon.graphql.suwayomi.type.FetchSourceMangaType
 import mihon.graphql.suwayomi.type.UpdateChapterPatchInput
 import mihon.graphql.suwayomi.type.UpdateExtensionPatchInput
 import mihon.graphql.suwayomi.type.UpdateMangaCategoriesPatchInput
+import mihon.suwayomi.auth.AuthFailedException
+import mihon.suwayomi.auth.NotSignedInException
+import mihon.suwayomi.auth.SuwayomiAuth
+import mihon.suwayomi.auth.SuwayomiAuthInterceptor
+import mihon.suwayomi.auth.TokenResult
+import mihon.suwayomi.auth.sameOrigin
+import okhttp3.Call
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 
 sealed interface SuwayomiError {
     data object NotConfigured : SuwayomiError
+    /** No Pocket ID session: nothing was sent to the server. */
+    data object NotSignedIn : SuwayomiError
     data object Unauthorized : SuwayomiError
     data class Http(val statusCode: Int) : SuwayomiError
     data object Network : SuwayomiError
@@ -62,51 +72,60 @@ fun <T> SuwayomiResult<T>.getOrNull(): T? = (this as? SuwayomiResult.Ok)?.value
 
 /**
  * The single native client for a Suwayomi server. Every call reads the saved server settings, so a settings change is
- * picked up by the next request. Nothing here logs request or response bodies or the key.
+ * picked up by the next request. Every request goes through [SuwayomiAuth]: without a session nothing is sent. Nothing
+ * here logs request or response bodies or tokens.
+ *
+ * Authorization carries the Pocket ID access token only. If a separate Suwayomi server API key is also saved it is
+ * not sent, because the reverse proxy in front of Suwayomi consumes the Authorization header.
  */
 class SuwayomiRepository(
-    private val httpClient: OkHttpClient,
+    httpClient: OkHttpClient,
     private val serverUrl: () -> String,
-    private val apiKey: () -> String,
+    private val auth: SuwayomiAuth,
+    issuer: () -> String? = { null },
 ) {
 
-    private data class Config(val baseUrl: String, val key: String)
+    private val authorizedClient = SuwayomiAuthInterceptor.derive(
+        httpClient,
+        SuwayomiAuthInterceptor(auth, { baseUrl() }, issuer),
+    )
 
-    private var cached: Pair<Config, ApolloClient>? = null
+    private var cached: Pair<String, ApolloClient>? = null
 
-    private fun config(): Config? {
-        val baseUrl = SuwayomiServerUrl.normalize(serverUrl()) ?: return null
-        return Config(baseUrl, apiKey().trim())
-    }
+    private fun baseUrl(): String? = SuwayomiServerUrl.normalize(serverUrl())
 
     @Synchronized
-    private fun apollo(config: Config): ApolloClient {
-        cached?.takeIf { it.first == config }?.let { return it.second }
+    private fun apollo(baseUrl: String): ApolloClient {
+        cached?.takeIf { it.first == baseUrl }?.let { return it.second }
         cached?.second?.close()
         val client = ApolloClient.Builder()
-            .serverUrl(SuwayomiServerUrl.graphQlEndpoint(config.baseUrl))
-            .okHttpClient(httpClient)
-            .apply { if (config.key.isNotEmpty()) addHttpHeader("Authorization", "Bearer ${config.key}") }
+            .serverUrl(SuwayomiServerUrl.graphQlEndpoint(baseUrl))
+            .okHttpClient(authorizedClient)
             .dispatcher(Dispatchers.IO)
             .httpExposeErrorBody(true)
             .build()
-        cached = config to client
+        cached = baseUrl to client
         return client
     }
 
-    /** Headers an image request for [url] needs. The key is only ever sent to the configured server itself. */
-    fun imageHeaders(url: String?): Map<String, String> {
-        val config = config() ?: return emptyMap()
-        if (config.key.isEmpty() || url == null) return emptyMap()
-        val sameServer = url == config.baseUrl || url.startsWith(config.baseUrl + "/")
-        return if (sameServer) mapOf("Authorization" to "Bearer ${config.key}") else emptyMap()
+    /**
+     * The client image loaders must use for [url]: the authorised, redirect-disabled client for the https server's own
+     * origin, so the token is added (and refreshed) by the interceptor and can never follow a redirect. Null for any
+     * other URL (http server, other origin): those are loaded without credentials by the app's default client.
+     */
+    fun authorizedCallFactory(url: String?): Call.Factory? = if (url != null && isSecureServerUrl(url)) authorizedClient else null
+
+    private fun isSecureServerUrl(url: String): Boolean {
+        val server = baseUrl()?.toHttpUrlOrNull() ?: return false
+        val target = url.toHttpUrlOrNull() ?: return false
+        return server.isHttps && sameOrigin(server, target)
     }
 
     /** Turns a server-relative path such as a thumbnail or page URL into an absolute URL. */
     fun resolveUrl(path: String?): String? {
         if (path.isNullOrBlank()) return null
         if (path.startsWith("http://") || path.startsWith("https://")) return path
-        val base = config()?.baseUrl ?: return null
+        val base = baseUrl() ?: return null
         return base + (if (path.startsWith("/")) path else "/$path")
     }
 
@@ -114,9 +133,11 @@ class SuwayomiRepository(
         call: (ApolloClient) -> ApolloCall<D>,
         map: (D) -> T,
     ): SuwayomiResult<T> {
-        val config = config() ?: return SuwayomiResult.Err(SuwayomiError.NotConfigured)
+        val baseUrl = baseUrl() ?: return SuwayomiResult.Err(SuwayomiError.NotConfigured)
+        // No session, no request. A legacy http server never gets credentials, so it needs no session.
+        if (SuwayomiServerUrl.isHttps(baseUrl) && !auth.isSignedIn()) return SuwayomiResult.Err(SuwayomiError.NotSignedIn)
         return try {
-            val response = call(apollo(config)).execute()
+            val response = call(apollo(baseUrl)).execute()
             val data = response.data
             when (val exception = response.exception) {
                 null -> when {
@@ -133,7 +154,13 @@ class SuwayomiRepository(
                         else -> SuwayomiResult.Err(SuwayomiError.Http(exception.statusCode))
                     }
                 }
-                is ApolloNetworkException -> SuwayomiResult.Err(SuwayomiError.Network)
+                is ApolloNetworkException -> SuwayomiResult.Err(
+                    when {
+                        exception.causedBy<NotSignedInException>() -> SuwayomiError.NotSignedIn
+                        exception.causedBy<AuthFailedException>() -> SuwayomiError.Unauthorized
+                        else -> SuwayomiError.Network
+                    },
+                )
                 else -> SuwayomiResult.Err(SuwayomiError.InvalidResponse)
             }
         } catch (e: CancellationException) {

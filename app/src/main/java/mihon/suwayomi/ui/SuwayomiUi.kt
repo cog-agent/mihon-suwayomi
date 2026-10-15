@@ -16,8 +16,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
-import coil3.network.NetworkHeaders
-import coil3.network.httpHeaders
+import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.ImageRequest
 import mihon.suwayomi.SuwayomiError
 import mihon.suwayomi.SuwayomiRepository
@@ -33,6 +32,7 @@ sealed interface Loadable<out T> {
 @Composable
 fun errorText(error: SuwayomiError): String = when (error) {
     SuwayomiError.NotConfigured -> stringResource(MR.strings.suwayomi_not_configured)
+    SuwayomiError.NotSignedIn -> stringResource(MR.strings.suwayomi_sign_in_required)
     SuwayomiError.Unauthorized -> stringResource(MR.strings.suwayomi_error_unauthorized)
     is SuwayomiError.Http -> stringResource(MR.strings.suwayomi_error_http, error.statusCode)
     SuwayomiError.Network -> stringResource(MR.strings.suwayomi_error_unreachable)
@@ -70,13 +70,13 @@ fun SuwayomiImage(
     contentScale: ContentScale = ContentScale.Crop,
 ) {
     val url = repository.resolveUrl(path)
-    val headers = repository.imageHeaders(url)
-    val request = ImageRequest.Builder(LocalContext.current)
+    val context = LocalContext.current
+    val callFactory = repository.authorizedCallFactory(url)
+    val request = ImageRequest.Builder(context)
         .data(url)
         .apply {
-            if (headers.isNotEmpty()) {
-                httpHeaders(NetworkHeaders.Builder().apply { headers.forEach { (k, v) -> set(k, v) } }.build())
-            }
+            // The token is added by the interceptor of this redirect-disabled client, never passed through Coil.
+            if (callFactory != null) fetcherFactory(OkHttpNetworkFetcherFactory(callFactory = { callFactory }))
         }
         .build()
     AsyncImage(model = request, contentDescription = null, modifier = modifier, contentScale = contentScale)
