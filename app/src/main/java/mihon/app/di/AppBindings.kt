@@ -10,9 +10,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.protobuf.ProtoBuf
+import eu.kanade.tachiyomi.network.NetworkHelper
 import logcat.LogPriority
 import mihon.core.metro.AppCoroutineScope
 import mihon.core.metro.IsDebugBuild
+import mihon.suwayomi.KeystoreSecretCipher
+import mihon.suwayomi.SecretCipher
+import mihon.suwayomi.SuwayomiPreferences
+import mihon.suwayomi.SuwayomiRepository
 import mihon.telemetry.TelemetryConfig
 import nl.adaptivity.xmlutil.XmlDeclMode
 import nl.adaptivity.xmlutil.core.XmlVersion
@@ -62,4 +67,17 @@ object AppBindings {
     @Provides
     @SingleIn(AppScope::class)
     fun providesProtoBuf(): ProtoBuf = ProtoBuf
+
+    @Provides
+    @SingleIn(AppScope::class)
+    fun providesSecretCipher(): SecretCipher = KeystoreSecretCipher()
+
+    @Provides
+    @SingleIn(AppScope::class)
+    fun providesSuwayomiRepository(network: NetworkHelper, preferences: SuwayomiPreferences): SuwayomiRepository =
+        SuwayomiRepository(
+            httpClient = network.client,
+            serverUrl = { preferences.serverUrl().get() },
+            apiKey = { preferences.getApiKey() },
+        )
 }

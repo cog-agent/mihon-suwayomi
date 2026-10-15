@@ -1,0 +1,122 @@
+fragment SuwayomiDownloadStatusFields on DownloadStatus {
+  state
+  queue {
+    position
+    progress
+    state
+    tries
+    chapter {
+      id
+      name
+    }
+    manga {
+      id
+      title
+    }
+  }
+}
+
+query SuwayomiDownloadStatus {
+  downloadStatus {
+    ...SuwayomiDownloadStatusFields
+  }
+}
+
+mutation SuwayomiEnqueueDownloads($ids: [Int!]!) {
+  enqueueChapterDownloads(input: { ids: $ids }) {
+    downloadStatus {
+      ...SuwayomiDownloadStatusFields
+    }
+  }
+}
+
+mutation SuwayomiDequeueDownloads($ids: [Int!]!) {
+  dequeueChapterDownloads(input: { ids: $ids }) {
+    downloadStatus {
+      ...SuwayomiDownloadStatusFields
+    }
+  }
+}
+
+mutation SuwayomiStartDownloader {
+  startDownloader(input: {}) {
+    downloadStatus {
+      ...SuwayomiDownloadStatusFields
+    }
+  }
+}
+
+mutation SuwayomiStopDownloader {
+  stopDownloader(input: {}) {
+    downloadStatus {
+      ...SuwayomiDownloadStatusFields
+    }
+  }
+}
+
+mutation SuwayomiClearDownloader {
+  clearDownloader(input: {}) {
+    downloadStatus {
+      ...SuwayomiDownloadStatusFields
+    }
+  }
+}
+
+fragment SuwayomiExtensionRow on ExtensionType {
+  pkgName
+  name
+  lang
+  versionName
+  iconUrl
+  isInstalled
+  hasUpdate
+  isObsolete
+}
+
+query SuwayomiExtensions {
+  extensions(order: [{ by: NAME }]) {
+    nodes {
+      ...SuwayomiExtensionRow
+    }
+  }
+}
+
+mutation SuwayomiFetchExtensions {
+  fetchExtensions(input: {}) {
+    extensions {
+      ...SuwayomiExtensionRow
+    }
+  }
+}
+
+mutation SuwayomiUpdateExtension($id: String!, $patch: UpdateExtensionPatchInput!) {
+  updateExtension(input: { id: $id, patch: $patch }) {
+    extension {
+      ...SuwayomiExtensionRow
+    }
+  }
+}
+
+fragment SuwayomiLibraryUpdateFields on LibraryUpdateStatus {
+  jobsInfo {
+    isRunning
+    totalJobs
+    finishedJobs
+    skippedMangasCount
+    skippedCategoriesCount
+  }
+}
+
+query SuwayomiLibraryUpdateStatus {
+  libraryUpdateStatus {
+    ...SuwayomiLibraryUpdateFields
+  }
+}
+
+mutation SuwayomiUpdateLibrary($categories: [Int!]) {
+  updateLibrary(input: { categories: $categories }) {
+    updateStatus {
+      ...SuwayomiLibraryUpdateFields
+    }
+  }
+}

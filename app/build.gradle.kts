@@ -403,6 +403,9 @@ apollo {
             endpointUrl.set("http://localhost:4567/api/graphql")
             schemaFile.set(file("$srcDir/suwayomi.graphqls"))
         }
+
+        // 64-bit ids and timestamps are serialized as strings
+        mapScalarToKotlinString("LongString")
     }
 }
 

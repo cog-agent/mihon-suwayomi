@@ -202,6 +202,12 @@ object SettingsMainScreen : Screen() {
             screen = SettingsTrackingScreen,
         ),
         Item(
+            titleRes = MR.strings.pref_category_suwayomi,
+            subtitleRes = MR.strings.pref_suwayomi_summary,
+            icon = MaterialSymbols.Rounded.Storage,
+            screen = SettingsSuwayomiScreen,
+        ),
+        Item(
             titleRes = MR.strings.browse,
             subtitleRes = MR.strings.pref_browse_summary,
             icon = MaterialSymbols.Rounded.Explore,

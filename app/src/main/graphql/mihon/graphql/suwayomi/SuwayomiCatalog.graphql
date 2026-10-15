@@ -1,0 +1,166 @@
+fragment SuwayomiMangaCard on MangaType {
+  id
+  sourceId
+  title
+  thumbnailUrl
+  inLibrary
+  unreadCount
+  downloadCount
+}
+
+fragment SuwayomiChapterRow on ChapterType {
+  id
+  mangaId
+  name
+  chapterNumber
+  scanlator
+  uploadDate
+  sourceOrder
+  isRead
+  isBookmarked
+  isDownloaded
+  lastPageRead
+  pageCount
+}
+
+fragment SuwayomiCategoryRow on CategoryType {
+  id
+  name
+  order
+  default
+}
+
+query SuwayomiSources {
+  sources(order: [{ by: NAME }]) {
+    nodes {
+      id
+      name
+      displayName
+      lang
+      iconUrl
+      supportsLatest
+      isConfigurable
+    }
+  }
+}
+
+mutation SuwayomiFetchSourceManga(
+  $source: LongString!,
+  $type: FetchSourceMangaType!,
+  $page: Int!,
+  $query: String,
+) {
+  fetchSourceManga(
+    input: {
+      source: $source,
+      type: $type,
+      page: $page,
+      query: $query,
+    },
+  ) {
+    hasNextPage
+    mangas {
+      ...SuwayomiMangaCard
+    }
+  }
+}
+
+query SuwayomiLibrary {
+  mangas(
+    condition: { inLibrary: true },
+    order: [{ by: TITLE }],
+  ) {
+    nodes {
+      ...SuwayomiMangaCard
+      categories {
+        nodes {
+          id
+        }
+      }
+    }
+  }
+}
+
+query SuwayomiCategories {
+  categories(order: [{ by: ORDER }]) {
+    nodes {
+      ...SuwayomiCategoryRow
+    }
+  }
+}
+
+mutation SuwayomiCreateCategory($name: String!) {
+  createCategory(input: { name: $name }) {
+    category {
+      ...SuwayomiCategoryRow
+    }
+  }
+}
+
+mutation SuwayomiSetMangaInLibrary($id: Int!, $inLibrary: Boolean!) {
+  updateManga(input: { id: $id, patch: { inLibrary: $inLibrary } }) {
+    manga {
+      ...SuwayomiMangaCard
+    }
+  }
+}
+
+mutation SuwayomiUpdateMangaCategories($id: Int!, $patch: UpdateMangaCategoriesPatchInput!) {
+  updateMangaCategories(input: { id: $id, patch: $patch }) {
+    manga {
+      id
+    }
+  }
+}
+
+query SuwayomiMangaDetails($id: Int!) {
+  manga(id: $id) {
+    ...SuwayomiMangaCard
+    author
+    artist
+    description
+    genre
+    status
+    realUrl
+    categories {
+      nodes {
+        id
+      }
+    }
+    chapters {
+      nodes {
+        ...SuwayomiChapterRow
+      }
+    }
+  }
+}
+
+mutation SuwayomiFetchMangaAndChapters($id: Int!, $fetchManga: Boolean!, $fetchChapters: Boolean!) {
+  fetchMangaAndChapters(input: { id: $id, fetchManga: $fetchManga, fetchChapters: $fetchChapters }) {
+    manga {
+      ...SuwayomiMangaCard
+    }
+    chapters {
+      ...SuwayomiChapterRow
+    }
+  }
+}
+
+mutation SuwayomiFetchChapterPages($chapterId: Int!) {
+  fetchChapterPages(input: { chapterId: $chapterId }) {
+    pages
+    chapter {
+      id
+      pageCount
+      lastPageRead
+    }
+  }
+}
+
+mutation SuwayomiUpdateChapters($ids: [Int!]!, $patch: UpdateChapterPatchInput!) {
+  updateChapters(input: { ids: $ids, patch: $patch }) {
+    chapters {
+      ...SuwayomiChapterRow
+    }
+  }
+}

@@ -1,0 +1,7 @@
+query SuwayomiAboutServer {
+  aboutServer {
+    name
+    version
+    buildType
+  }
+}
