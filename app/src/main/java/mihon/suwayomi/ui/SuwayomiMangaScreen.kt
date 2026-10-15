@@ -34,10 +34,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
-import cafe.adriel.voyager.core.model.ScreenModel
-import cafe.adriel.voyager.core.model.rememberScreenModel
-import cafe.adriel.voyager.core.model.screenModelScope
-import cafe.adriel.voyager.core.screen.Screen
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewModelScope
+import eu.kanade.presentation.util.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -58,7 +58,7 @@ import tachiyomi.presentation.core.i18n.stringResource
 class SuwayomiMangaScreenModel(
     private val repository: SuwayomiRepository,
     private val mangaId: Int,
-) : ScreenModel {
+) : ViewModel() {
 
     val details: StateFlow<Loadable<SuwayomiMangaDetails>>
         field = MutableStateFlow<Loadable<SuwayomiMangaDetails>>(Loadable.Loading)
@@ -74,7 +74,7 @@ class SuwayomiMangaScreenModel(
 
     init {
         load()
-        screenModelScope.launch {
+        viewModelScope.launch {
             repository.getCategories().let { if (it is SuwayomiResult.Ok) categories.value = it.value }
         }
     }
@@ -84,7 +84,7 @@ class SuwayomiMangaScreenModel(
     }
 
     fun load() {
-        screenModelScope.launch {
+        viewModelScope.launch {
             if (details.value !is Loadable.Loaded) details.value = Loadable.Loading
             details.value = when (val result = repository.getMangaDetails(mangaId)) {
                 is SuwayomiResult.Ok -> Loadable.Loaded(result.value)
@@ -94,7 +94,7 @@ class SuwayomiMangaScreenModel(
     }
 
     private fun <T> act(call: suspend () -> SuwayomiResult<T>, onOk: () -> Unit = ::load) {
-        screenModelScope.launch {
+        viewModelScope.launch {
             when (val result = call()) {
                 is SuwayomiResult.Ok -> onOk()
                 is SuwayomiResult.Err -> error.value = result.error
@@ -146,7 +146,7 @@ class SuwayomiMangaScreenModel(
         act({ repository.enqueueDownloads(ids) }) {
             clearSelection()
             // Downloads only run while the downloader is started.
-            screenModelScope.launch { repository.startDownloader() }
+            viewModelScope.launch { repository.startDownloader() }
         }
     }
 }
@@ -158,7 +158,7 @@ data class SuwayomiMangaScreen(val mangaId: Int) : Screen() {
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val repository = LocalContext.current.appGraph.suwayomiRepository
-        val model = rememberScreenModel { SuwayomiMangaScreenModel(repository, mangaId) }
+        val model = viewModel(key = "suwayomi-manga-$mangaId") { SuwayomiMangaScreenModel(repository, mangaId) }
         val details by model.details.collectAsState()
         val categories by model.categories.collectAsState()
         val selected by model.selected.collectAsState()

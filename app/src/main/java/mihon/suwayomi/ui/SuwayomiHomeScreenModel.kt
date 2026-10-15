@@ -1,7 +1,7 @@
 package mihon.suwayomi.ui
 
-import cafe.adriel.voyager.core.model.ScreenModel
-import cafe.adriel.voyager.core.model.screenModelScope
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -27,7 +27,7 @@ data class BrowseState(
     val loading: Boolean = false,
 )
 
-class SuwayomiHomeScreenModel(private val repository: SuwayomiRepository) : ScreenModel {
+class SuwayomiHomeScreenModel(private val repository: SuwayomiRepository) : ViewModel() {
 
     val library: StateFlow<Loadable<List<SuwayomiManga>>>
         field = MutableStateFlow<Loadable<List<SuwayomiManga>>>(Loadable.Loading)
@@ -69,7 +69,7 @@ class SuwayomiHomeScreenModel(private val repository: SuwayomiRepository) : Scre
     }
 
     private fun <T> MutableStateFlow<Loadable<T>>.load(call: suspend () -> SuwayomiResult<T>) {
-        screenModelScope.launch {
+        viewModelScope.launch {
             if (value !is Loadable.Loaded) value = Loadable.Loading
             value = when (val result = call()) {
                 is SuwayomiResult.Ok -> Loadable.Loaded(result.value)
@@ -80,7 +80,7 @@ class SuwayomiHomeScreenModel(private val repository: SuwayomiRepository) : Scre
 
     /** Runs an action whose failure should be reported as a message, then calls [onOk]. */
     private fun <T> act(call: suspend () -> SuwayomiResult<T>, onOk: (T) -> Unit = {}) {
-        screenModelScope.launch {
+        viewModelScope.launch {
             when (val result = call()) {
                 is SuwayomiResult.Ok -> onOk(result.value)
                 is SuwayomiResult.Err -> error.value = result.error
@@ -92,7 +92,7 @@ class SuwayomiHomeScreenModel(private val repository: SuwayomiRepository) : Scre
 
     fun loadLibrary() {
         library.load { repository.getLibrary() }
-        screenModelScope.launch {
+        viewModelScope.launch {
             repository.getCategories().let { if (it is SuwayomiResult.Ok) categories.value = it.value }
         }
     }
@@ -140,7 +140,7 @@ class SuwayomiHomeScreenModel(private val repository: SuwayomiRepository) : Scre
         val source = current.source ?: return
         val page = if (reset) 1 else current.page + 1
         browse.update { it.copy(loading = true, mangas = if (reset) emptyList() else it.mangas) }
-        screenModelScope.launch {
+        viewModelScope.launch {
             val result = repository.browse(source.id, current.type, page, current.query)
             // Ignore a stale answer if the user switched source or mode meanwhile.
             if (browse.value.source?.id != source.id || browse.value.type != current.type) return@launch
@@ -205,7 +205,7 @@ class SuwayomiHomeScreenModel(private val repository: SuwayomiRepository) : Scre
         act({ repository.uninstallExtension(extension.pkgName) }) { reloadExtensions() }
 
     private fun reloadExtensions() {
-        screenModelScope.launch {
+        viewModelScope.launch {
             repository.getExtensions().let { if (it is SuwayomiResult.Ok) extensions.value = Loadable.Loaded(it.value) }
         }
     }

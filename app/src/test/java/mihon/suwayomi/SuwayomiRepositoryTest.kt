@@ -73,7 +73,7 @@ class SuwayomiRepositoryTest {
 
         val result = repository().getSources()
 
-        result shouldBe SuwayomiResult.Ok(listOf(SuwayomiSource("123", "Alpha", "en", "/i/1", true)))
+        result shouldBe SuwayomiResult.Ok(listOf(SuwayomiSource("123", "Alpha (EN)", "en", "/i/1", true)))
         requests.single().url.toString() shouldBe "http://suwayomi.test:4567/api/graphql"
     }
 

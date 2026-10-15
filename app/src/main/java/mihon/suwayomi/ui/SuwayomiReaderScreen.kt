@@ -21,10 +21,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import cafe.adriel.voyager.core.model.ScreenModel
-import cafe.adriel.voyager.core.model.rememberScreenModel
-import cafe.adriel.voyager.core.model.screenModelScope
-import cafe.adriel.voyager.core.screen.Screen
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewModelScope
+import eu.kanade.presentation.util.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import kotlinx.coroutines.NonCancellable
@@ -50,7 +50,7 @@ class SuwayomiReaderScreenModel(
     private val repository: SuwayomiRepository,
     private val chapterId: Int,
     private val mangaId: Int,
-) : ScreenModel {
+) : ViewModel() {
 
     val content: StateFlow<Loadable<ReaderContent>>
         field = MutableStateFlow<Loadable<ReaderContent>>(Loadable.Loading)
@@ -62,7 +62,7 @@ class SuwayomiReaderScreenModel(
     }
 
     fun load() {
-        screenModelScope.launch {
+        viewModelScope.launch {
             content.value = Loadable.Loading
             val pages = repository.getChapterPages(chapterId)
             content.value = when (pages) {
@@ -96,7 +96,7 @@ data class SuwayomiReaderScreen(val chapterId: Int, val mangaId: Int) : Screen()
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val repository = LocalContext.current.appGraph.suwayomiRepository
-        val model = rememberScreenModel { SuwayomiReaderScreenModel(repository, chapterId, mangaId) }
+        val model = viewModel(key = "suwayomi-reader-$chapterId") { SuwayomiReaderScreenModel(repository, chapterId, mangaId) }
         val content by model.content.collectAsState()
 
         Box(Modifier.fillMaxSize()) {

@@ -69,18 +69,10 @@ class SuwayomiConnectionTester(private val client: OkHttpClient) {
 
     private fun createApolloClient(baseUrl: String, apiKey: String): ApolloClient {
         val token = apiKey.trim()
-        val okHttp = if (token.isEmpty()) {
-            client
-        } else {
-            client.newBuilder()
-                .addInterceptor { chain ->
-                    chain.proceed(chain.request().newBuilder().header("Authorization", "Bearer $token").build())
-                }
-                .build()
-        }
         return ApolloClient.Builder()
             .serverUrl(SuwayomiServerUrl.graphQlEndpoint(baseUrl))
-            .okHttpClient(okHttp)
+            .okHttpClient(client)
+            .apply { if (token.isNotEmpty()) addHttpHeader("Authorization", "Bearer $token") }
             .dispatcher(Dispatchers.IO)
             // Lets us close the error body ourselves instead of leaking the socket.
             .httpExposeErrorBody(true)

@@ -41,8 +41,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import cafe.adriel.voyager.core.model.rememberScreenModel
-import cafe.adriel.voyager.core.screen.Screen
+import androidx.lifecycle.viewmodel.compose.viewModel
+import eu.kanade.presentation.util.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import mihon.app.di.appGraph
@@ -60,7 +60,7 @@ object SuwayomiHomeScreen : Screen() {
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val repository = LocalContext.current.appGraph.suwayomiRepository
-        val model = rememberScreenModel { SuwayomiHomeScreenModel(repository) }
+        val model = viewModel(key = "suwayomi-home") { SuwayomiHomeScreenModel(repository) }
         var tab by rememberSaveable { mutableIntStateOf(0) }
         val snackbar = remember { SnackbarHostState() }
         val error by model.error.collectAsState()

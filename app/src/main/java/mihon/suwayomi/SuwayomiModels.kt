@@ -143,7 +143,7 @@ internal fun SuwayomiDownloadStatusFields.toModel() = SuwayomiDownloadStatus(
             mangaId = it.manga.id,
             mangaTitle = it.manga.title,
             state = it.state.rawValue,
-            progress = it.progress,
+            progress = it.progress.toFloat(),
         )
     },
 )

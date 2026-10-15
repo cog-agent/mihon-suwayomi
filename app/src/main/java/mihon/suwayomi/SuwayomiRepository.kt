@@ -85,17 +85,13 @@ class SuwayomiRepository(
         cached?.second?.close()
         val client = ApolloClient.Builder()
             .serverUrl(SuwayomiServerUrl.graphQlEndpoint(config.baseUrl))
-            .okHttpClient(authenticated(config.key))
+            .okHttpClient(httpClient)
+            .apply { if (config.key.isNotEmpty()) addHttpHeader("Authorization", "Bearer ${config.key}") }
             .dispatcher(Dispatchers.IO)
             .httpExposeErrorBody(true)
             .build()
         cached = config to client
         return client
-    }
-
-    private fun authenticated(key: String): OkHttpClient {
-        if (key.isEmpty()) return httpClient
-        return httpClient.newBuilder().addInterceptor(authInterceptor(key)).build()
     }
 
     /** Headers an image request for a server-relative URL needs. */
@@ -346,12 +342,9 @@ class SuwayomiRepository(
 
     // endregion
 
+    @Synchronized
     fun close() {
         cached?.second?.close()
         cached = null
     }
-}
-
-internal fun authInterceptor(key: String) = okhttp3.Interceptor { chain ->
-    chain.proceed(chain.request().newBuilder().header("Authorization", "Bearer $key").build())
 }
