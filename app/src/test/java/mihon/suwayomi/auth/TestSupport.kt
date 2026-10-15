@@ -286,7 +286,20 @@ class AuthEnv(
     configure: Boolean = true,
     offline: Boolean = false,
 ) {
-    val store = InMemoryPreferenceStore()
+    // The deployed server is the default, so "not configured" means the user saved an unusable issuer.
+    val store = InMemoryPreferenceStore(
+        if (configure) {
+            emptySequence()
+        } else {
+            sequenceOf(
+                InMemoryPreferenceStore.InMemoryPreference(
+                    tachiyomi.core.common.preference.Preference.privateKey("suwayomi_oidc_issuer"),
+                    "invalid",
+                    "",
+                ),
+            )
+        },
+    )
     val cipher = FakeCipher()
     val prefs = OidcPreferences(store, cipher)
     val provider = FakeProvider(key)

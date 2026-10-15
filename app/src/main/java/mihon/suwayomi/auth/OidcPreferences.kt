@@ -48,11 +48,11 @@ class OidcPreferences(
     preferenceStore: PreferenceStore,
     private val cipher: SecretCipher,
 ) {
-    private val issuer = preferenceStore.getString(Preference.privateKey("suwayomi_oidc_issuer"), "")
-    private val clientId = preferenceStore.getString(Preference.privateKey("suwayomi_oidc_client_id"), "")
-    private val audience = preferenceStore.getString(Preference.privateKey("suwayomi_oidc_audience"), "")
-    private val scopes = preferenceStore.getString(Preference.privateKey("suwayomi_oidc_scopes"), OidcConfig.DEFAULT_SCOPES)
-    private val offlineAccess = preferenceStore.getBoolean(Preference.privateKey("suwayomi_oidc_offline_access"), false)
+    private val issuer = preferenceStore.getString(Preference.privateKey("suwayomi_oidc_issuer"), OidcConfig.DEPLOYED_ISSUER)
+    private val clientId = preferenceStore.getString(Preference.privateKey("suwayomi_oidc_client_id"), OidcConfig.DEPLOYED_CLIENT_ID)
+    private val audience = preferenceStore.getString(Preference.privateKey("suwayomi_oidc_audience"), OidcConfig.DEPLOYED_RESOURCE)
+    private val scopes = preferenceStore.getString(Preference.privateKey("suwayomi_oidc_scopes"), OidcConfig.DEPLOYED_SCOPES)
+    private val offlineAccess = preferenceStore.getBoolean(Preference.privateKey("suwayomi_oidc_offline_access"), true)
 
     // Encrypted JSON blob; backup-excluded through the private key prefix.
     private val sessionBlob = preferenceStore.getString(Preference.privateKey("suwayomi_oidc_session_enc"), "")

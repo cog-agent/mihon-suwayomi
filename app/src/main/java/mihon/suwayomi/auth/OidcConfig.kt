@@ -4,7 +4,7 @@ import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 /**
- * Validated provider settings. There are no defaults for the issuer or client id: they come from the user.
+ * Validated provider settings. The deployed server's public values are the preferences' defaults; the user can override them.
  *
  * [issuer] is kept exactly as entered (trimmed): the discovery document must repeat it character for character.
  */
@@ -32,6 +32,11 @@ data class OidcConfig(
         const val OFFLINE_ACCESS = "offline_access"
         val STANDARD_SCOPES = setOf(OPENID, "profile", "email", "groups", OFFLINE_ACCESS)
         const val DEFAULT_SCOPES = "openid profile email groups"
+        // Public, non-sensitive values of the deployed Pocket ID / Suwayomi pair.
+        const val DEPLOYED_ISSUER = "https://auth.aaaaa.news"
+        const val DEPLOYED_CLIENT_ID = "acea2a2b-1337-4ba0-a050-dfd573f1667a"
+        const val DEPLOYED_RESOURCE = "https://manga.aaaaa.news"
+        const val DEPLOYED_SCOPES = "openid profile email groups offline_access suwayomi.access"
         const val REDIRECT_URI = "app.mihon.suwayomi:/oauth2redirect"
     }
 }

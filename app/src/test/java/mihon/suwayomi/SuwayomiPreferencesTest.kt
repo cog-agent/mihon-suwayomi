@@ -65,7 +65,7 @@ class SuwayomiPreferencesTest {
 
         preferences.clear()
 
-        preferences.serverUrl().get() shouldBe ""
+        preferences.serverUrl().get() shouldBe SuwayomiPreferences.DEPLOYED_SERVER_URL
         preferences.hasApiKey() shouldBe false
     }
 

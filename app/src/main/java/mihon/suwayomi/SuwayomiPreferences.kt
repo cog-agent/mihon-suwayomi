@@ -13,10 +13,14 @@ class SuwayomiPreferences(
     private val cipher: SecretCipher,
 ) {
 
-    /** Normalized server base URL, or empty when not configured. */
-    private val serverUrl = preferenceStore.getString(Preference.privateKey("suwayomi_server_url"), "")
+    /** Normalized server base URL; defaults to the deployed server. */
+    private val serverUrl = preferenceStore.getString(Preference.privateKey("suwayomi_server_url"), DEPLOYED_SERVER_URL)
 
     fun serverUrl() = serverUrl
+
+    companion object {
+        const val DEPLOYED_SERVER_URL = "https://manga.aaaaa.news"
+    }
 
     // Only ever holds the encrypted form; use getApiKey/setApiKey.
     private val encryptedApiKey = preferenceStore.getString(Preference.privateKey("suwayomi_api_key_enc"), "")
