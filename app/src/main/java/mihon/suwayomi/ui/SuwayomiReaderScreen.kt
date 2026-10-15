@@ -57,10 +57,6 @@ class SuwayomiReaderScreenModel(
 
     val repo: SuwayomiRepository get() = repository
 
-    init {
-        load()
-    }
-
     fun load() {
         viewModelScope.launch {
             content.value = Loadable.Loading
@@ -98,6 +94,9 @@ data class SuwayomiReaderScreen(val chapterId: Int, val mangaId: Int) : Screen()
         val repository = LocalContext.current.appGraph.suwayomiRepository
         val model = viewModel(key = "suwayomi-reader-$chapterId") { SuwayomiReaderScreenModel(repository, chapterId, mangaId) }
         val content by model.content.collectAsState()
+
+        // The model outlives the screen, so reload to pick up the progress saved the last time.
+        LaunchedEffect(Unit) { model.load() }
 
         Box(Modifier.fillMaxSize()) {
             LoadableContent(content, onRetry = model::load) { reader ->

@@ -276,7 +276,12 @@ class SuwayomiRepositoryTest {
         repo.resolveUrl("/api/v1/manga/1/thumbnail") shouldBe "https://example.test/suwayomi/api/v1/manga/1/thumbnail"
         repo.resolveUrl("https://other.test/a.png") shouldBe "https://other.test/a.png"
         repo.resolveUrl(null) shouldBe null
-        repo.imageHeaders() shouldBe mapOf("Authorization" to "Bearer k")
-        repository().imageHeaders() shouldBe emptyMap()
+        val own = "https://example.test/suwayomi/api/v1/manga/1/thumbnail"
+        repo.imageHeaders(own) shouldBe mapOf("Authorization" to "Bearer k")
+        // The key never goes to another host, including one that only shares the server URL as a prefix.
+        repo.imageHeaders("https://other.test/a.png") shouldBe emptyMap()
+        repo.imageHeaders("https://example.test/suwayomi.evil.test/a.png") shouldBe emptyMap()
+        repo.imageHeaders(null) shouldBe emptyMap()
+        repository().imageHeaders("http://suwayomi.test:4567/a.png") shouldBe emptyMap()
     }
 }

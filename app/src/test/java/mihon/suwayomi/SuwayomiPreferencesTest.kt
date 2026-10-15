@@ -30,6 +30,18 @@ class SuwayomiPreferencesTest {
     }
 
     @Test
+    fun `changing the server url without a new key drops the old key`() {
+        preferences.saveServer("http://a.test", "fake-key-for-tests")
+        preferences.saveServer("http://a.test", "")
+        preferences.getApiKey() shouldBe "fake-key-for-tests"
+
+        preferences.saveServer("http://b.test", "")
+
+        preferences.serverUrl().get() shouldBe "http://b.test"
+        preferences.hasApiKey() shouldBe false
+    }
+
+    @Test
     fun `blank key clears the stored key`() {
         preferences.setApiKey("fake-key-for-tests")
         preferences.setApiKey("   ")

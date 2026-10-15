@@ -1,28 +1,29 @@
 # Suwayomi native client: implementation status
 
-Stage 1: connection foundation and settings UI.
-Branch: `cog/suwayomi-native-client`. Baseline was verified clean (`git status --porcelain` empty) at `446f6df82`. Nothing is committed.
+Native Suwayomi client: connection settings, library, browse, manga detail and reader over GraphQL.
+Branch: `cog/suwayomi-native-client`, based on `446f6df82`.
 
-## Verification status: NOT COMPILED, NOT TESTED
+## Verification status
 
-The sandbox has no JDK, Android SDK, Gradle distribution or dependency cache:
+Verified in this sandbox (JDK 21, Android SDK at `/home/pn/android-sdk`):
 
-```
-$ ./gradlew --version
-ERROR: JAVA_HOME is not set and no 'java' command could be found in your PATH.
-$ which java javac kotlinc gradle sdkmanager   # none found
-$ mise ls                                       # nothing installed
-```
+- `:app:compileDebugKotlin`: passes.
+- `:app:assembleDebug`: passes; produces unsigned-by-release-key debug APKs (`app-x86-debug.apk`, `app-x86_64-debug.apk`, ~68 MB each, not committed).
+- `testDebugUnitTest` for the whole repo: passes, 172 test cases, 0 failures.
 
-So no Gradle compile or test ran. Treat the code as unverified until the commands below pass in a prepared environment. The only checks done were static: line length ≤ 120 on touched `.kt` files, and confirming that the Apollo, Preference and Compose APIs used are already used elsewhere in the repo or are in the checked-in schema.
-
-Commands to run where a JDK and the Android SDK are available:
+Build memory: the sandbox cgroup limit is 3 GiB, and the project default of `-Xmx4g` gets the daemon OOM-killed. The Kotlin backend needs about 2 GB. A working invocation:
 
 ```
-./gradlew :app:testDebugUnitTest --tests 'mihon.suwayomi.*'
-./gradlew :app:compileDebugKotlin
-./gradlew spotlessCheck   # if configured
+./gradlew --no-daemon -Dorg.gradle.jvmargs="-Xmx2300m -XX:MaxMetaspaceSize=400m" \
+  -Pkotlin.compiler.execution.strategy=in-process -Dorg.gradle.workers.max=2 :app:assembleDebug
 ```
+
+NOT verified:
+
+- Runtime behaviour. There is no emulator, system image or `/dev/kvm` here, so the app has never been launched; no screen, reader or Keystore cipher was exercised.
+- Any live Suwayomi server. None was available, so queries and mutations are checked only against the checked-in schema and fake-response unit tests.
+- Release signing. No Android signing key exists in the password store, so no signed release APK was produced.
+- Reproducible/pinned Nix build and F-Droid repo deployment: not started; the repo has no Nix or F-Droid metadata. Blocked on a signing key and a decision on where the keystore lives.
 
 ## Live server
 

@@ -94,10 +94,12 @@ class SuwayomiRepository(
         return client
     }
 
-    /** Headers an image request for a server-relative URL needs. */
-    fun imageHeaders(): Map<String, String> {
-        val key = config()?.key.orEmpty()
-        return if (key.isEmpty()) emptyMap() else mapOf("Authorization" to "Bearer $key")
+    /** Headers an image request for [url] needs. The key is only ever sent to the configured server itself. */
+    fun imageHeaders(url: String?): Map<String, String> {
+        val config = config() ?: return emptyMap()
+        if (config.key.isEmpty() || url == null) return emptyMap()
+        val sameServer = url == config.baseUrl || url.startsWith(config.baseUrl + "/")
+        return if (sameServer) mapOf("Authorization" to "Bearer ${config.key}") else emptyMap()
     }
 
     /** Turns a server-relative path such as a thumbnail or page URL into an absolute URL. */
@@ -138,6 +140,8 @@ class SuwayomiRepository(
             throw e
         } catch (_: NullPointerException) {
             // A nullable mutation payload came back empty.
+            SuwayomiResult.Err(SuwayomiError.InvalidResponse)
+        } catch (_: IllegalStateException) {
             SuwayomiResult.Err(SuwayomiError.InvalidResponse)
         } catch (_: Exception) {
             SuwayomiResult.Err(SuwayomiError.Network)
@@ -240,9 +244,11 @@ class SuwayomiRepository(
     suspend fun getChapterPages(chapterId: Int): SuwayomiResult<SuwayomiChapterPages> =
         exec({ it.mutation(SuwayomiFetchChapterPagesMutation(chapterId)) }) { data ->
             val payload = data.fetchChapterPages!!
+            // A page that cannot be resolved would shift every later page, so fail instead of dropping it.
+            val pageUrls = payload.pages.map { resolveUrl(it) ?: error("unresolvable page url") }
             SuwayomiChapterPages(
                 chapterId = chapterId,
-                pageUrls = payload.pages.mapNotNull { resolveUrl(it) },
+                pageUrls = pageUrls,
                 lastPageRead = payload.chapter.lastPageRead,
             )
         }

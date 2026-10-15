@@ -2,6 +2,7 @@ package mihon.suwayomi.ui
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -60,10 +61,6 @@ class SuwayomiHomeScreenModel(private val repository: SuwayomiRepository) : View
 
     val repo: SuwayomiRepository get() = repository
 
-    init {
-        loadLibrary()
-    }
-
     fun consumeError() {
         error.value = null
     }
@@ -113,6 +110,7 @@ class SuwayomiHomeScreenModel(private val repository: SuwayomiRepository) : View
     fun loadSources() = sources.load { repository.getSources() }
 
     fun openSource(source: SuwayomiSource?) {
+        browseJob?.cancel()
         browse.value = BrowseState(source = source)
         if (source != null) fetchBrowse(reset = true)
     }
@@ -135,15 +133,17 @@ class SuwayomiHomeScreenModel(private val repository: SuwayomiRepository) : View
         fetchBrowse(reset = false)
     }
 
+    private var browseJob: Job? = null
+
     private fun fetchBrowse(reset: Boolean) {
         val current = browse.value
         val source = current.source ?: return
         val page = if (reset) 1 else current.page + 1
         browse.update { it.copy(loading = true, mangas = if (reset) emptyList() else it.mangas) }
-        viewModelScope.launch {
+        // A newer request supersedes the one in flight, so a slow older answer can never overwrite it.
+        browseJob?.cancel()
+        browseJob = viewModelScope.launch {
             val result = repository.browse(source.id, current.type, page, current.query)
-            // Ignore a stale answer if the user switched source or mode meanwhile.
-            if (browse.value.source?.id != source.id || browse.value.type != current.type) return@launch
             when (result) {
                 is SuwayomiResult.Ok -> browse.update {
                     it.copy(

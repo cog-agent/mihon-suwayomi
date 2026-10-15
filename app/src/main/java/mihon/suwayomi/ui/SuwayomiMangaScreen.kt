@@ -73,7 +73,6 @@ class SuwayomiMangaScreenModel(
         field = MutableStateFlow<SuwayomiError?>(null)
 
     init {
-        load()
         viewModelScope.launch {
             repository.getCategories().let { if (it is SuwayomiResult.Ok) categories.value = it.value }
         }
@@ -166,6 +165,8 @@ data class SuwayomiMangaScreen(val mangaId: Int) : Screen() {
         val snackbar = remember { SnackbarHostState() }
         val errorMessage = error?.let { errorText(it) }
 
+        // Also runs when returning from the reader, so read state and progress are current.
+        LaunchedEffect(Unit) { model.load() }
         LaunchedEffect(errorMessage) {
             if (errorMessage != null) {
                 snackbar.showSnackbar(errorMessage)

@@ -70,7 +70,7 @@ fun SuwayomiImage(
     contentScale: ContentScale = ContentScale.Crop,
 ) {
     val url = repository.resolveUrl(path)
-    val headers = repository.imageHeaders()
+    val headers = repository.imageHeaders(url)
     val request = ImageRequest.Builder(LocalContext.current)
         .data(url)
         .apply {

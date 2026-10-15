@@ -66,6 +66,7 @@ object SuwayomiHomeScreen : Screen() {
         val error by model.error.collectAsState()
         val errorMessage = error?.let { errorText(it) }
 
+        LaunchedEffect(Unit) { model.loadLibrary() }
         LaunchedEffect(errorMessage) {
             if (errorMessage != null) {
                 snackbar.showSnackbar(errorMessage)

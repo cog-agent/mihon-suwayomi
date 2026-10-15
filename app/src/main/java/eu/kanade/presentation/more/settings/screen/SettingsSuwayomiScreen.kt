@@ -76,7 +76,10 @@ object SettingsSuwayomiScreen : SearchableSettings {
         val normalizedUrl = SuwayomiServerUrl.normalize(url)
         val testing = state == SuwayomiConnectionState.State.Testing
 
-        fun effectiveKey() = apiKey.ifBlank { preferences.getApiKey() }
+        // The stored key is only valid for the stored server, so never pair it with a different URL.
+        fun effectiveKey() = apiKey.ifBlank {
+            if (normalizedUrl == preferences.serverUrl().get()) preferences.getApiKey() else ""
+        }
 
         Column(
             modifier = Modifier
@@ -117,8 +120,7 @@ object SettingsSuwayomiScreen : SearchableSettings {
                 Button(
                     enabled = normalizedUrl != null && !testing,
                     onClick = {
-                        preferences.serverUrl().set(normalizedUrl!!)
-                        if (apiKey.isNotBlank()) preferences.setApiKey(apiKey)
+                        preferences.saveServer(normalizedUrl!!, apiKey)
                         apiKey = ""
                         hasStoredKey = preferences.hasApiKey()
                         url = normalizedUrl
