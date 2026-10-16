@@ -1,0 +1,7 @@
+// Build-only init script: the release build type falls back to the auto-generated debug
+// keystore when no keystore.properties exists. Force it unsigned; signing happens outside Nix.
+gradle.lifecycle.beforeProject { project ->
+    project.plugins.withId("com.android.application") {
+        project.extensions.getByName("android").buildTypes.getByName("release").signingConfig = null
+    }
+}

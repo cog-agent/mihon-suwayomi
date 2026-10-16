@@ -45,6 +45,11 @@ import kotlinx.serialization.protobuf.ProtoBuf
 import mihon.core.metro.IsDebugBuild
 import mihon.domain.extension.interactor.GetExtensionStoreCountAsFlow
 import mihon.domain.extension.repository.ExtensionStoreRepository
+import mihon.suwayomi.SuwayomiConnectionState
+import mihon.suwayomi.SuwayomiPreferences
+import mihon.suwayomi.SuwayomiRepository
+import mihon.suwayomi.auth.OidcPreferences
+import mihon.suwayomi.auth.OidcSession
 import nl.adaptivity.xmlutil.serialization.XML
 import tachiyomi.domain.backup.service.BackupPreferences
 import tachiyomi.domain.category.interactor.GetCategories
@@ -93,6 +98,11 @@ interface AppGraph : ViewModelGraph {
     val privacyPreferences: PrivacyPreferences
     val securityPreferences: SecurityPreferences
     val downloadPreferences: DownloadPreferences
+    val suwayomiPreferences: SuwayomiPreferences
+    val suwayomiConnectionState: SuwayomiConnectionState
+    val suwayomiRepository: SuwayomiRepository
+    val oidcPreferences: OidcPreferences
+    val suwayomiAuth: OidcSession
 
     val crashLogUtil: CrashLogUtil
 
