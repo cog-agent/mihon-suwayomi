@@ -46,6 +46,7 @@ import eu.kanade.presentation.util.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import mihon.app.di.appGraph
+import mihon.suwayomi.SuwayomiRouting
 import mihon.suwayomi.SuwayomiBrowseType
 import mihon.suwayomi.SuwayomiManga
 import mihon.suwayomi.SuwayomiRepository
@@ -68,6 +69,17 @@ object SuwayomiHomeScreen : Screen() {
         val auth = LocalContext.current.appGraph.suwayomiAuth
         val authState by auth.state.collectAsState()
         val signedIn = authState.signedIn
+        val setup = LocalContext.current.appGraph.suwayomiSetup
+        val requested by SuwayomiRouting.requestedTab.collectAsState()
+
+        // First use, and every start: look up the saved server's sign-in details unless that was already done.
+        LaunchedEffect(Unit) { setup.ensureDiscovered() }
+        LaunchedEffect(requested) {
+            requested?.let {
+                tab = it.ordinal
+                SuwayomiRouting.consume()
+            }
+        }
 
         // Coming back from the sign-in browser: pick up the session the redirect handler stored.
         OnResume { auth.syncState() }
@@ -102,7 +114,11 @@ object SuwayomiHomeScreen : Screen() {
                 Column {
                     TopAppBar(
                         title = { Text(stringResource(MR.strings.suwayomi_title)) },
-                        navigationIcon = { TextButton(onClick = navigator::pop) { Text("←") } },
+                        actions = {
+                            TextButton(onClick = { navigator.push(SuwayomiSettingsScreen) }) {
+                                Text(stringResource(MR.strings.action_settings))
+                            }
+                        },
                     )
                     ScrollableTabRow(selectedTabIndex = tab, edgePadding = 0.dp) {
                         titles.forEachIndexed { index, title ->
@@ -119,7 +135,7 @@ object SuwayomiHomeScreen : Screen() {
         ) { padding ->
             Column(Modifier.padding(padding).fillMaxSize()) {
                 if (!signedIn) {
-                    SignInRequired(auth, authState.error)
+                    SignInRequired(setup, authState.error)
                     return@Column
                 }
                 when (tab) {

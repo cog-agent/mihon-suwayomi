@@ -18,6 +18,14 @@ class SuwayomiPreferences(
 
     fun serverUrl() = serverUrl
 
+    /**
+     * The server whose client registration was last fetched and applied. Empty until discovery has succeeded, so the
+     * saved provider settings are only trusted for the server they were discovered from.
+     */
+    private val discoveredServer = preferenceStore.getString(Preference.privateKey("suwayomi_discovered_server"), "")
+
+    fun discoveredServer() = discoveredServer
+
     companion object {
         const val DEPLOYED_SERVER_URL = "https://manga.aaaaa.news"
     }

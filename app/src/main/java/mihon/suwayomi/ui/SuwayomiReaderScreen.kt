@@ -6,12 +6,19 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.VerticalPager
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -20,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -36,6 +44,8 @@ import kotlinx.coroutines.withContext
 import mihon.app.di.appGraph
 import mihon.suwayomi.SuwayomiChapter
 import mihon.suwayomi.SuwayomiChapterPages
+import mihon.suwayomi.SuwayomiImageScale
+import tachiyomi.presentation.core.util.collectAsState
 import mihon.suwayomi.SuwayomiRepository
 import mihon.suwayomi.SuwayomiResult
 import mihon.suwayomi.chapterAfter
@@ -91,9 +101,22 @@ data class SuwayomiReaderScreen(val chapterId: Int, val mangaId: Int) : Screen()
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
-        val repository = LocalContext.current.appGraph.suwayomiRepository
+        val graph = LocalContext.current.appGraph
+        val repository = graph.suwayomiRepository
+        val prefs = graph.suwayomiReaderPreferences
         val model = viewModel(key = "suwayomi-reader-$chapterId") { SuwayomiReaderScreenModel(repository, chapterId, mangaId) }
         val content by model.content.collectAsState()
+        val mode by prefs.readingMode.collectAsState()
+        val scale by prefs.imageScale.collectAsState()
+        val keepScreenOn by prefs.keepScreenOn.collectAsState()
+        val showPageNumber by prefs.showPageNumber.collectAsState()
+
+        val view = LocalView.current
+        DisposableEffect(view, keepScreenOn) {
+            val previous = view.keepScreenOn
+            view.keepScreenOn = keepScreenOn
+            onDispose { view.keepScreenOn = previous }
+        }
 
         // The model outlives the screen, so reload to pick up the progress saved the last time.
         LaunchedEffect(Unit) { model.load() }
@@ -106,14 +129,43 @@ data class SuwayomiReaderScreen(val chapterId: Int, val mangaId: Int) : Screen()
                     return@LoadableContent
                 }
                 val pager = rememberPagerState(initialPage = reader.startPage) { urls.size }
+                val list = rememberLazyListState(initialFirstVisibleItemIndex = reader.startPage)
+                val current = if (mode.continuous) list.firstVisibleItemIndex else pager.currentPage
 
-                LaunchedEffect(pager) {
-                    snapshotFlow { pager.settledPage }.distinctUntilChanged().collect { model.saveProgress(it, urls.size) }
+                // Switching modes keeps the reader on the page it was showing.
+                LaunchedEffect(mode) {
+                    if (mode.continuous) list.scrollToItem(pager.currentPage) else pager.scrollToPage(list.firstVisibleItemIndex)
+                }
+                LaunchedEffect(mode, pager, list) {
+                    snapshotFlow { if (mode.continuous) list.firstVisibleItemIndex else pager.settledPage }
+                        .distinctUntilChanged()
+                        .collect { model.saveProgress(it, urls.size) }
                 }
 
                 Box(Modifier.fillMaxSize()) {
-                    HorizontalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1) { index ->
-                        SuwayomiImage(repository, urls[index], Modifier.fillMaxSize(), ContentScale.Fit)
+                    val contentScale = if (scale == SuwayomiImageScale.FitWidth) ContentScale.FillWidth else ContentScale.Fit
+                    val page: @Composable (Int) -> Unit = { index ->
+                        if (scale == SuwayomiImageScale.FitWidth && !mode.continuous) {
+                            Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                                SuwayomiImage(repository, urls[index], Modifier.fillMaxWidth(), contentScale)
+                            }
+                        } else {
+                            SuwayomiImage(repository, urls[index], Modifier.fillMaxSize(), contentScale)
+                        }
+                    }
+                    when {
+                        mode.continuous -> LazyColumn(Modifier.fillMaxSize(), state = list) {
+                            items(urls.size) { index ->
+                                SuwayomiImage(repository, urls[index], Modifier.fillMaxWidth(), ContentScale.FillWidth)
+                            }
+                        }
+                        mode.horizontal -> HorizontalPager(
+                            pager,
+                            Modifier.fillMaxSize(),
+                            beyondViewportPageCount = 1,
+                            reverseLayout = mode.reversed,
+                        ) { page(it) }
+                        else -> VerticalPager(pager, Modifier.fillMaxSize(), beyondViewportPageCount = 1) { page(it) }
                     }
                     Row(
                         Modifier
@@ -124,12 +176,14 @@ data class SuwayomiReaderScreen(val chapterId: Int, val mangaId: Int) : Screen()
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         TextButton(onClick = navigator::pop) { Text("←") }
-                        Text(
-                            stringResource(MR.strings.suwayomi_page_progress, pager.currentPage + 1, urls.size),
-                            style = MaterialTheme.typography.labelLarge,
-                        )
+                        if (showPageNumber) {
+                            Text(
+                                stringResource(MR.strings.suwayomi_page_progress, current + 1, urls.size),
+                                style = MaterialTheme.typography.labelLarge,
+                            )
+                        }
                         val next = reader.next
-                        if (next != null && pager.currentPage == urls.size - 1) {
+                        if (next != null && current == urls.size - 1) {
                             TextButton(onClick = { navigator.replace(SuwayomiReaderScreen(next.id, mangaId)) }) {
                                 Text("→")
                             }

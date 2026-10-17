@@ -115,3 +115,39 @@ No secrets, tokens, client secrets or management API keys were found in tracked 
 - No instrumented or UI tests.
 - No migration or onboarding from the tracker or extension configuration.
 - `network_security_config.xml` still permits cleartext.
+
+## v39 verification (versionCode 39, 0.22.0-beta.1)
+
+Artifact: `/nix/store/4dcrkp6j4m4f78znk063r0rh82gyjfwx-mihon-suwayomi-unsigned-0.22.0-beta.1-code39` (build log `/root/mihon-nix-build-b/build.log` on agent-server, `EXIT=0`).
+
+### Source and tests
+
+- The build input `/root/mihon-nix-build-b/mihon-suwayomi-src.tar` has sha256 `d0021f9b…05a4de`, equal to `src.sha256` in `nix/inputs.nix`. All 24 modified or new source, test and resource files compare byte-identical to the worktree. Only `nix/default.nix`, `nix/inputs.nix` and `nix/make-inputs.sh` differ, which are the build files themselves.
+- Test XML in the Nix output (`test-results/`, summed from each `<testsuite>` header): **17 suites, 212 tests, 0 failures, 0 errors, 0 skipped.**
+- The suites include the new `SuwayomiBootstrapTest`, `SuwayomiConnectionSetupTest`, `SuwayomiRoutingTest` and `SuwayomiReaderPreferencesTest`.
+- The tests ran inside the Nix build of that exact source. No separate re-run outside Nix was done.
+- Live bootstrap document at `https://manga.aaaaa.news/.well-known/suwayomi-client` (curl, HTTP 200) has only keys the strict parser accepts: issuer `https://auth.aaaaa.news`, resource and server `https://manga.aaaaa.news`, the app redirect URI, scopes `openid profile email groups offline_access suwayomi.access`, version 1. It was not fed through the parser; the parser's match is from reading the code and the tests.
+
+### Code review of the diff (no serious defect found; nothing rebuilt)
+
+- `SuwayomiConnectionSetup`: a server change discards the session before saving the new address. A stale discovery cannot write its result, because both the generation counter and the saved server are checked under a lock. Only https servers are discovered.
+- `SuwayomiBootstrap.parse` rejects unknown keys (where a secret would sit), a wrong version, a different origin or redirect, and scope sets without an API permission. The response is capped at 16 KiB and redirects are refused.
+- Minor, not fixed: the Settings back arrow is a text button with "←" and no content description, so it is poorly accessible. `network_security_config.xml` still permits cleartext. The earlier open security notes still apply, except note 3: the legacy API-key screen was deleted in this diff.
+
+### Emulator run (offline)
+
+- Run `20261017T020325Z-release`, artifacts in `/root/android-suwayomi-smoke/state/runs/20261017T020325Z-release/`. Console log `/tmp/smoke39.out` on this host.
+- Driver scripts are `smoke39.sh` and `inner39.sh` in `/home/pn/src/android-suwayomi-smoke` (copied to `/root/android-suwayomi-smoke`).
+- The unsigned x86_64 APK was re-signed as a throwaway copy with a temporary 2-day key. The key and the intermediate files were deleted. The copy stays in `state/inputs/tmp-signed-v39-x86_64.apk`. The signed copy is for emulator use only and is not publishable.
+- Environment: Android 14 google_apis x86_64, KVM, private network namespace. No network, so no auth round trip and no live discovery were exercised.
+- Results:
+  - Install succeeded and the cold start stays alive. The first screen is the server library (title "Suwayomi", tabs Library, Browse, Downloads, Extensions, Updates, "Settings" button). There is no onboarding, no folder or permissions page and no local Mihon home.
+  - Root state was "Sign in required" with "Looking up the server's sign-in details…" because no network was available.
+  - Settings shows the default URL `https://manga.aaaaa.news` in the Server URL field, plus "Connect". It has no issuer, client or scope fields.
+  - Discovery started on its own and, offline, ended with the red "Could not reach the server. Check the address and your connection, then retry." The Sign in button is disabled until discovery succeeds. Successful discovery was not observed.
+  - Reader settings were changed to Continuous scroll and Fit width (v4 → v5 screenshots). After `am force-stop` and a relaunch (v6) both stayed selected, so they persist.
+  - The two switches (keep screen on, show page number) were already on by default. The harness failed to find them in uiautomator, so they were **not toggled**. Their persistence is **not verified**, and neither is the theme or pure black.
+  - Back from Settings returns to the server root (v7). Back from the root leaves the app to the launcher (NexusLauncher resumed). Mihon home never appeared.
+  - Logcat: no FATAL EXCEPTION, no ANR, no process death (`logcat-crash.txt` empty).
+- uiautomator does not expose Compose chip or switch state (`selected`/`checked` read false everywhere). Selection was read from the screenshots `v4-scrolled.png`, `v5-changed.png` and `v6-persist.png`, not from the XML.
+- Not verified: library mutations (no library was reachable, none were attempted), successful discovery, sign-in, any authenticated browsing or reading, the Keystore session path on device, and the unsigned artifact's own signature (signing is left to the parent).

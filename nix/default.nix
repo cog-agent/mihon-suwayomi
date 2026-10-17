@@ -7,7 +7,10 @@
 #   - Gradle 9.8.1 distribution snapshot (the unpacked wrapper dist)
 #   - platform android-37.2 (not in nixpkgs repo.json): fixed-output fetch from Google
 # Signing is NOT done here; the output is app-release-unsigned.apk.
-{ inputs ? import ./inputs.nix }:
+{ inputs ? import ./inputs.nix
+# Also run :app:testDebugUnitTest in the same sandbox, before assembleRelease; the XML reports go to $out/test-results.
+, runTests ? false
+}:
 let
   pkgs = import (builtins.fetchTree inputs.nixpkgs) {
     system = "x86_64-linux";
@@ -60,7 +63,7 @@ let
 in
 pkgs.stdenv.mkDerivation {
   pname = "mihon-suwayomi-unsigned";
-  version = "0.21.2-code38";
+  version = "0.22.0-beta.1-code39";
   dontUnpack = true;
   dontFixup = true;
   nativeBuildInputs = [ jdk pkgs.unzip pkgs.gnutar pkgs.gzip fakeGit ];
@@ -103,7 +106,7 @@ pkgs.stdenv.mkDerivation {
     cd $TMPDIR/work/src
     $TMPDIR/dist/gradle-9.8.1/bin/gradle --version | tee $TMPDIR/gradle-version.txt
     $TMPDIR/dist/gradle-9.8.1/bin/gradle --offline --no-daemon --console=plain --stacktrace \
-      -I ${./unsigned-init.gradle} :app:assembleRelease 2>&1 | tee $TMPDIR/build.log
+      -I ${./unsigned-init.gradle} ${lib.optionalString runTests ":app:testDebugUnitTest"} :app:assembleRelease 2>&1 | tee $TMPDIR/build.log
     runHook postBuild
   '';
 
@@ -113,6 +116,7 @@ pkgs.stdenv.mkDerivation {
     ls -l $TMPDIR/work/src/app/build/outputs/apk/release/
     cp $TMPDIR/work/src/app/build/outputs/apk/release/*.apk $out/
     cp $TMPDIR/work/src/app/build/outputs/mapping/release/mapping.txt $out/ || true
+    ${lib.optionalString runTests "mkdir -p $out/test-results && cp $TMPDIR/work/src/app/build/test-results/testDebugUnitTest/*.xml $out/test-results/"}
     cp $TMPDIR/gradle-version.txt $TMPDIR/build.log $out/
     (cd $out && sha256sum *.apk > SHA256SUMS)
     runHook postInstall

@@ -45,7 +45,9 @@ import kotlinx.serialization.protobuf.ProtoBuf
 import mihon.core.metro.IsDebugBuild
 import mihon.domain.extension.interactor.GetExtensionStoreCountAsFlow
 import mihon.domain.extension.repository.ExtensionStoreRepository
+import mihon.suwayomi.SuwayomiConnectionSetup
 import mihon.suwayomi.SuwayomiConnectionState
+import mihon.suwayomi.SuwayomiReaderPreferences
 import mihon.suwayomi.SuwayomiPreferences
 import mihon.suwayomi.SuwayomiRepository
 import mihon.suwayomi.auth.OidcPreferences
@@ -101,6 +103,8 @@ interface AppGraph : ViewModelGraph {
     val suwayomiPreferences: SuwayomiPreferences
     val suwayomiConnectionState: SuwayomiConnectionState
     val suwayomiRepository: SuwayomiRepository
+    val suwayomiSetup: SuwayomiConnectionSetup
+    val suwayomiReaderPreferences: SuwayomiReaderPreferences
     val oidcPreferences: OidcPreferences
     val suwayomiAuth: OidcSession
 

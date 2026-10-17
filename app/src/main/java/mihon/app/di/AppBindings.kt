@@ -16,6 +16,7 @@ import mihon.core.metro.AppCoroutineScope
 import mihon.core.metro.IsDebugBuild
 import mihon.suwayomi.KeystoreSecretCipher
 import mihon.suwayomi.SecretCipher
+import mihon.suwayomi.SuwayomiConnectionSetup
 import mihon.suwayomi.SuwayomiPreferences
 import mihon.suwayomi.SuwayomiRepository
 import mihon.suwayomi.auth.OidcPreferences
@@ -94,5 +95,21 @@ object AppBindings {
         serverUrl = { preferences.serverUrl().get() },
         auth = auth,
         issuer = { oidcPreferences.config()?.issuer },
+    )
+
+    @Provides
+    @SingleIn(AppScope::class)
+    fun providesSuwayomiConnectionSetup(
+        network: NetworkHelper,
+        preferences: SuwayomiPreferences,
+        oidcPreferences: OidcPreferences,
+        auth: OidcSession,
+        @AppCoroutineScope scope: CoroutineScope,
+    ): SuwayomiConnectionSetup = SuwayomiConnectionSetup(
+        preferences = preferences,
+        oidcPreferences = oidcPreferences,
+        auth = auth,
+        httpClient = network.client,
+        scope = scope,
     )
 }

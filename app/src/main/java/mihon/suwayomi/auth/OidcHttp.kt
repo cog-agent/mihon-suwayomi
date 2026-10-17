@@ -46,19 +46,23 @@ internal class OidcHttp(base: OkHttpClient) {
         return reply.body ?: throw OidcException(OidcError.DiscoveryFailed)
     }
 
+    /** Reply of a GET with a small body limit; the caller decides what each status means. */
+    suspend fun getJsonReply(url: String, maxBytes: Long): JsonReply =
+        execute(Request.Builder().url(url).header("Accept", "application/json").get().build(), maxBytes)
+
     /** Posts a form. The reply body is parsed leniently: a non-JSON body gives a null [JsonReply.body]. */
     suspend fun postForm(url: String, form: Map<String, String>): JsonReply {
         val body = FormBody.Builder().apply { form.forEach { (k, v) -> add(k, v) } }.build()
         return execute(Request.Builder().url(url).header("Accept", "application/json").post(body).build())
     }
 
-    private suspend fun execute(request: Request): JsonReply {
+    private suspend fun execute(request: Request, maxBytes: Long = MAX_BODY_BYTES): JsonReply {
         if (!request.url.isHttps) throw OidcException(OidcError.DiscoveryInsecure)
         val response = client.newCall(request).awaitResponse()
         response.use { r ->
             val source = r.body.source()
-            source.request(MAX_BODY_BYTES + 1)
-            if (source.buffer.size > MAX_BODY_BYTES) throw OidcException(OidcError.ProviderError)
+            source.request(maxBytes + 1)
+            if (source.buffer.size > maxBytes) throw OidcException(OidcError.ProviderError)
             val text = source.readUtf8()
             val parsed = try {
                 json.parseToJsonElement(text) as? JsonObject

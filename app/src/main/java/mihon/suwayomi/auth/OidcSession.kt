@@ -148,6 +148,26 @@ class OidcSession(
         result
     }
 
+    /**
+     * Drops the stored session and any pending sign-in without any network call, and invalidates in-flight refreshes.
+     * Used when the server changes: the old server's credentials must be gone before the new one is contacted.
+     */
+    fun discardSession() = synchronized(storeLock) {
+        epoch++
+        synchronized(pendingLock) { pending = null }
+        synchronized(cacheLock) {
+            metadataCache = null
+            jwksCache = null
+        }
+        prefs.clearSession()
+        publish(signingIn = false)
+    }
+
+    /** Checks that [issuer] publishes valid OIDC discovery (exact issuer, S256, same-origin https endpoints). */
+    suspend fun verifyProvider(issuer: String) {
+        fetchMetadata(issuer, forceFresh = true)
+    }
+
     // endregion
 
     // region Sign-in

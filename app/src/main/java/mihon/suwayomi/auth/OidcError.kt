@@ -21,6 +21,12 @@ enum class OidcError {
     UnknownSigningKey,
     InsufficientScope,
     InvalidGrant,
+
+    /** The server publishes no `/.well-known/suwayomi-client` document (or it is not reachable as one). */
+    BootstrapUnavailable,
+
+    /** The client-registration document is malformed, oversized, or advertises values this client must not trust. */
+    BootstrapInvalid,
 }
 
 class OidcException(val error: OidcError, message: String = error.name, cause: Throwable? = null) :
